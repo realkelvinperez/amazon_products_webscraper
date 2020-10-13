@@ -31,13 +31,21 @@ class AmazonSpider(scrapy.Spider):
         products = response.xpath(self.getAllProducts)
         for product in products:
 
-            has_prime = product.xpath('.//*[@aria-label="Amazon Prime"]')
-            logging.info(has_prime)
+            is_prime = product.xpath('.//*[@aria-label="Amazon Prime"]')
+            logging.info(is_prime)
 
-            if not has_prime:
+            if not is_prime:
+
                 asin = product.xpath('@data-asin').extract_first()
+
                 product_url = f"https://www.amazon.com/dp/{asin}"
-                yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta={'asin': asin})
+
+                meta = {
+                    "isPrime": is_prime,
+                    "asin": asin,
+                    "url": product_url
+                }
+                yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
 
         # next_page = response.xpath('//li[@class="a-last"]/a/@href').extract_first()
         #
@@ -54,17 +62,26 @@ class AmazonSpider(scrapy.Spider):
             yield scrapy.Request(url=get_url(url), callback=self.parse)
 
     def parse_product_details(self, response):
+
+        # Get asin
         asin = response.meta['asin']
+        is_prime = response.meta['isPrime']
+        url = response.meta['url']
+        # Get title
         title = response.xpath('//*[@id="productTitle"]/text()').extract_first()
-        image = re.search('"large":"(.*?)"',response.text).groups()[0]
-        rating = response.xpath('//*[@id="acrPopover"]/@title').extract_first()
-        number_of_reviews = response.xpath('//*[@id="acrCustomerReviewText"]/text()').extract_first()
+
+        # Get Images
+        # list with only 1 index so that i don't break the current api
+        image_urls = [re.search('"large":"(.*?)"',response.text).groups()[0]]
+
+        # Get price
         price = response.xpath('//*[@id="priceblock_ourprice"]/text()').extract_first()
 
         if not price:
             price = response.xpath('//*[@data-asin-price]/@data-asin-price').extract_first() or \
                     response.xpath('//*[@id="price_inside_buybox"]/text()').extract_first()
 
+        # Get Variations
         temp = response.xpath('//*[@id="twister"]')
         sizes = []
         colors = []
@@ -75,8 +92,53 @@ class AmazonSpider(scrapy.Spider):
             sizes = di.get('size_name', [])
             colors = di.get('color_name', [])
 
-        bullet_points = response.xpath('//*[@id="feature-bullets"]//li/span/text()').extract()
-        seller_rank = response.xpath('//*[text()="Amazon Best Sellers Rank:"]/parent::*//text()[not(parent::style)]').extract()
-        yield {'asin': asin, 'Title': title, 'MainImage': image, 'Rating': rating, 'NumberOfReviews': number_of_reviews,
-               'Price': price, 'AvailableSizes': sizes, 'AvailableColors': colors, 'BulletPoints': bullet_points,
-               'SellerRank': seller_rank}
+        # Get About bullets
+        # TODO: Array with each bullet extracted
+        about_bullets = response.xpath('//*[@id="feature-bullets"]//li/span/text()').extract()
+
+        # TODO: reviews int
+        #  totalReviews string
+        #  description
+        #  sellers
+        #  isSellerNameInProductName
+        #  inStock
+        #  uuid
+        #  ean
+        #  catagory
+        #  upc
+        #  hasBuyBox
+        #  isFba
+        #  soldByAmazon
+        #  soldBy
+
+        # Get Sellers rank
+        bsr = response.xpath('//*[text()="Amazon Best Sellers Rank:"]/parent::*//text()[not(parent::style)]').extract()
+
+        yield {
+            "about_bullets": about_bullets,
+            'imageUrls': image_urls,
+            'title': title,
+            'asin': asin,
+            'url': url,
+            'isPrime': is_prime,
+            # 'ean': ean,
+            # 'description': description,
+            # 'category': category,
+            # 'upc': upc,
+            # 'totalReviews': totalReviews,
+            # 'rating': rating,
+            # 'hasBuyBox': hasBuyBox,
+            # 'isFba': isFba,
+            # 'soldByAmazon': soldByAmazon,
+            # 'soldBy': soldBy,
+            'bsr': bsr,
+            # 'inStock': inStock,
+            # 'sellers': sellers,
+            # 'variations': variations,
+            # 'isSellerNameInProductName': isSellerNameInProductName,
+            'price': price,
+            # 'uuid': uuid,
+
+            # 'availableSizes': sizes,
+            # 'availableColors': colors,
+        }
