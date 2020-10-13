@@ -1,0 +1,15 @@
+Date: Tue, 13 Oct 2020 18:39:09 GMT
+Content-Type: text/html; charset=utf-8
+X-Powered-By: Express
+Access-Control-Allow-Origin: undefined
+Access-Control-Allow-Headers: Origin, X-Requested-With, Content-Type, Accept
+Access-Control-Allow-Methods: HEAD,GET,POST,DELETE,OPTIONS,PUT
+Access-Control-Allow-Credentials: true
+Set-Cookie: ubid-main=130-1958214-4582629; Domain=.amazon.com; Expires=Wed, 13-Oct-2021 18:39:06 GMT; Path=/
+Set-Cookie: session-id=144-6585476-9519859; Domain=.amazon.com; Expires=Tue, 01-Jan-2036 08:00:01 GMT; Path=/
+Set-Cookie: session-id-time=2082787201l; Domain=.amazon.com; Expires=Tue, 01-Jan-2036 08:00:01 GMT; Path=/
+Set-Cookie: i18n-prefs=USD; Domain=.amazon.com; Expires=Tue, 01-Jan-2036 08:00:01 GMT; Path=/
+Sa-Final-Url: https://www.amazon.com/dp/B07R1SZP62
+Etag: W/"19df1e-jDcNhg4npwyl382jIixN9FPh5qo"
+Vary: Accept-Encoding
+Content-Encoding: gzip
