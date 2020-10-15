@@ -686,3 +686,53 @@ Tempered Glass panel (like your cell phone, easy to clean, won't scratch like ch
 Genuine Medify Replacement Filter: B07MTQFFNT, 110 Volt units, USA registered Lifetime Warranty
 
 ",
+title,soldByAmazon,price
+,<generator object AmazonSpider.parse_product_details.<locals>.get_sold_by_amazon at 0x7ffbf044a6d0>,"
+$169.00
+"
+title,soldByAmazon,price
+,false,"
+$169.00
+"
+title,soldByAmazon,price
+,true,"
+$169.00
+"
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon
+true
+soldByAmazon
+true
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon
+true
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon
+false
+soldByAmazon,soldBy
+false,<generator object AmazonSpider.parse_product_details.<locals>.get_sold_by at 0x7ff4a104ff20>
+soldByAmazon,soldBy
+false,<generator object AmazonSpider.parse_product_details.<locals>.get_sold_by at 0x7fc91080df20>
+soldByAmazon,soldBy
+false,<GET http://api.scraperapi.com/?api_key=0dabb38ed3e0603f8b4f1a354a443476&url=http%3A%2F%2Fapi.scraperapi.com%2F%3Fapi_key%3D0dabb38ed3e0603f8b4f1a354a443476%26url%3Dhttps%253A%252F%252Fwww.amazon.com%252Fgp%252Faod%252Fajax%252Fref%253Ddp_olp_NEW_mbc%253Fasin%253DB079WCPPQD%26country_code%3Dus&country_code=us>
+aboutBullets,asin,bsr,category,description,ean,hasBuyBox,imageUrls,inStock,isFba,isPrime,isSellerNameInProductName,price,rating,sellers,soldBy,soldByAmazon,title,totalreviews,upc,url,uuid,variations
+,B079WCPPQD,,,,,,,,,,,,,,,false,,,,,,
+aboutBullets,asin,bsr,category,description,ean,hasBuyBox,imageUrls,inStock,isFba,isPrime,isSellerNameInProductName,price,rating,sellers,soldBy,soldByAmazon,title,totalreviews,upc,url,uuid,variations
+,B079WCPPQD,,,,,,,,,,,,,,<generator object AmazonSpider.parse_product_details.<locals>.get_sold_by at 0x7fcd90f979e0>,false,,,,,,
+aboutBullets,asin,bsr,category,description,ean,hasBuyBox,imageUrls,inStock,isFba,isPrime,isSellerNameInProductName,price,rating,sellers,soldBy,soldByAmazon,title,totalreviews,upc,url,uuid,variations
+,B079WCPPQD,,,,,,,,,,,,,,someones store,false,,,,,,

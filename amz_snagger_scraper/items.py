@@ -5,8 +5,27 @@
 
 import scrapy
 
-
-class AmzSnaggerScraperItem(scrapy.Item):
-    # define the fields for your item here like:
-    # name = scrapy.Field()
-    pass
+class Product(scrapy.Item):
+    aboutBullets = scrapy.Field()
+    imageUrls = scrapy.Field()
+    title = scrapy.Field()
+    asin = scrapy.Field()
+    url = scrapy.Field()
+    isPrime = scrapy.Field()
+    ean = scrapy.Field()
+    description = scrapy.Field()
+    category = scrapy.Field()
+    upc = scrapy.Field()
+    totalreviews = scrapy.Field()
+    rating = scrapy.Field()
+    hasBuyBox = scrapy.Field()
+    isFba = scrapy.Field()
+    soldByAmazon = scrapy.Field()
+    soldBy = scrapy.Field()
+    bsr = scrapy.Field()
+    inStock = scrapy.Field()
+    sellers = scrapy.Field()
+    variations = scrapy.Field()
+    isSellerNameInProductName = scrapy.Field()
+    price = scrapy.Field()
+    uuid = scrapy.Field()

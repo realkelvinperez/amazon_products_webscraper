@@ -2,33 +2,43 @@ import scrapy
 from urllib.parse import urlencode
 import re
 import json
+from ..items import Product
 import logging
+
 API = '0dabb38ed3e0603f8b4f1a354a443476'
+
 
 def paginate_url(page):
     home_garden_url = f"https://www.amazon.com/s?i=garden&bbn=3295676011&rh=p_36%3A15000-&qid=1602614531&ref=sr_pg_{str(page)}&page={str(page)}"
     return home_garden_url
+
 
 def get_url(url):
     payload = {'api_key': API, 'url': url, 'country_code': 'us'}
     proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
     return proxy_url
 
+
 class AmazonSpider(scrapy.Spider):
     name = 'amazon_products_with_proxy'
     allowed_domains = ['amazon.com', 'api.scraperapi.com']
     page = 1
+    product = Product()
 
-    def __init__(self):
-        # define all of the xpaths here
-        self.getAllProducts = '//*[@data-component-type="s-search-result"]'
+    # def start_requests(self):
+    #     url = get_url(home_garden_url)
+    #     yield scrapy.Request(url=url, callback=self.parse)
 
+    # Debugging: Product Details Page
     def start_requests(self):
-        url = get_url(home_garden_url)
-        yield scrapy.Request(url=url, callback=self.parse)
+        # sold by amazon = True
+        # url = 'https://www.amazon.com/dp/B08J5Y89C7?ref=ods_ucc_kindle_B08J5Y89C7_rc_nd_ucc'
+        # sold by amazon = False
+        url = 'https://www.amazon.com/BISSELL-Crosswave-Vacuum-Cleaner-2306A/dp/B079WCPPQD/ref=sr_1_23?dchild=1&qid=1602614531&refinements=p_36%3A15000-&s=home-garden&sr=1-23'
+        yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
-        products = response.xpath(self.getAllProducts)
+        products = response.xpath('//*[@data-component-type="s-search-result"]')
         for product in products:
 
             is_prime = product.xpath('.//*[@aria-label="Amazon Prime"]')
@@ -47,6 +57,7 @@ class AmazonSpider(scrapy.Spider):
                 }
                 yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
 
+        # TODO: enable for production
         # next_page = response.xpath('//li[@class="a-last"]/a/@href').extract_first()
         #
         # if next_page:
@@ -55,48 +66,54 @@ class AmazonSpider(scrapy.Spider):
         #     logging.info(url)
         #     yield scrapy.Request(url=get_url(url), callback=self.parse)
 
+        # TODO: Disable for production
         if self.page < 4:
             self.page += 1
             url = paginate_url(self.page)
             logging.info(url)
             yield scrapy.Request(url=get_url(url), callback=self.parse)
 
+    def parse_sold_by(self, response):
+        self.product['soldBy'] = "someones store"
+        yield self.product
+
     def parse_product_details(self, response):
+        # aod-total-offer-count > total number os sellers selector
 
-        # Get asin
-        asin = response.meta['asin']
-        is_prime = response.meta['isPrime']
-        url = response.meta['url']
-        # Get title
-        title = response.xpath('//*[@id="productTitle"]/text()').extract_first()
+        def get_asin():
+            asin_pattern = re.compile(r"([A-Z0-9]{10})")
+            asin_string = response.css("link[rel='canonical']::attr(href)").get()
+            asin = asin_pattern.search(asin_string)[0]
+            return asin
 
-        # Get Images
-        # list with only 1 index so that i don't break the current api
-        image_urls = [re.search('"large":"(.*?)"',response.text).groups()[0]]
+        def get_sold_by_amazon():
+            # get the node
+            node = response.css("td .a-truncate.buybox-tabular-content.a-size-small").get()
+            # if node
+            # remove any extra white space
+            if node:
+                # check to see if text inside node includes "sold by Amazon.com"
+                has_text = "Amazon.com" in node[0].text
+                # if True set to "true" if False set to "false"
+                if has_text:
+                    return "true"
+                else:
+                    return "false"
+            else:
+                return "false"
 
-        # Get price
-        price = response.xpath('//*[@id="priceblock_ourprice"]/text()').extract_first()
+        self.product['asin'] = get_asin()
+        self.product['soldByAmazon'] = get_sold_by_amazon()
 
-        if not price:
-            price = response.xpath('//*[@data-asin-price]/@data-asin-price').extract_first() or \
-                    response.xpath('//*[@id="price_inside_buybox"]/text()').extract_first()
-
-        # Get Variations
-        temp = response.xpath('//*[@id="twister"]')
-        sizes = []
-        colors = []
-        if temp:
-            s = re.search('"variationValues" : ({.*})', response.text).groups()[0]
-            json_acceptable = s.replace("'", "\"")
-            di = json.loads(json_acceptable)
-            sizes = di.get('size_name', [])
-            colors = di.get('color_name', [])
-
-        # Get About bullets
-        # TODO: Array with each bullet extracted
-        about_bullets = response.xpath('//*[@id="feature-bullets"]//li/span/text()').extract()
+        if self.product['asin']:
+            buying_options_btn = response.css("#buybox-see-all-buying-choices-announce").get()
+            if buying_options_btn:
+                buying_options_url = get_url(
+                    f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_NEW_mbc?asin={self.product['asin']}")
+                yield scrapy.Request(url=buying_options_url, callback=self.parse_sold_by)
 
         # TODO: reviews int
+        #  aboutBullets
         #  totalReviews string
         #  description
         #  sellers
@@ -104,41 +121,7 @@ class AmazonSpider(scrapy.Spider):
         #  inStock
         #  uuid
         #  ean
-        #  catagory
+        #  category
         #  upc
         #  hasBuyBox
         #  isFba
-        #  soldByAmazon
-        #  soldBy
-
-        # Get Sellers rank
-        bsr = response.xpath('//*[text()="Amazon Best Sellers Rank:"]/parent::*//text()[not(parent::style)]').extract()
-
-        yield {
-            "about_bullets": about_bullets,
-            'imageUrls': image_urls,
-            'title': title,
-            'asin': asin,
-            'url': url,
-            'isPrime': is_prime,
-            # 'ean': ean,
-            # 'description': description,
-            # 'category': category,
-            # 'upc': upc,
-            # 'totalReviews': totalReviews,
-            # 'rating': rating,
-            # 'hasBuyBox': hasBuyBox,
-            # 'isFba': isFba,
-            # 'soldByAmazon': soldByAmazon,
-            # 'soldBy': soldBy,
-            'bsr': bsr,
-            # 'inStock': inStock,
-            # 'sellers': sellers,
-            # 'variations': variations,
-            # 'isSellerNameInProductName': isSellerNameInProductName,
-            'price': price,
-            # 'uuid': uuid,
-
-            # 'availableSizes': sizes,
-            # 'availableColors': colors,
-        }

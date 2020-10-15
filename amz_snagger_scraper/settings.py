@@ -13,8 +13,6 @@ SPIDER_MODULES = ['amz_snagger_scraper.spiders']
 NEWSPIDER_MODULE = 'amz_snagger_scraper.spiders'
 
 # Crawl responsibly by identifying yourself (and your website) on the user-agent
-#USER_AGENT = 'amz_snagger_scraper (+http://www.yourdomain.com)'
-
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
@@ -50,23 +48,11 @@ CONCURRENT_REQUESTS = 5
 # Enable or disable downloader middlewares
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html
 
-DOWNLOADER_MIDDLEWARES = {
-    # 'scrapy.downloadermiddlewares.useragent.UserAgentMiddleware': None,
-    # 'scrapy_fake_useragent.middleware.RetryUserAgentMiddleware': 401,
-    'scrapy.downloadermiddlewares.retry.RetryMiddleware': 90,
-    # 'scrapy_proxies.RandomProxy': 100,
-    # 'scrapy.downloadermiddlewares.httpproxy.HttpProxyMiddleware': 110,
-}
+# USER_AGENT = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 
-# FAKEUSERAGENT_PROVIDERS = [
-#     'scrapy_fake_useragent.providers.FakeUserAgentProvider',  # this is the first provider we'll try
-#     'scrapy_fake_useragent.providers.FakerProvider',  # if FakeUserAgentProvider fails, we'll use faker to generate a user-agent string for us
-#     'scrapy_fake_useragent.providers.FixedUserAgentProvider',  # fall back to USER_AGENT value
-# ]
-
-# Retry many times since proxies often fail
-RETRY_TIMES = 10
-# Retry on most error codes since proxies fail for different reasons
+# # Retry many times since proxies often fail
+# RETRY_TIMES = 10
+# # Retry on most error codes since proxies fail for different reasons
 # RETRY_HTTP_CODES = [500, 503, 504, 400, 403, 404, 408]
 
 # Proxy list containing entries like
@@ -74,7 +60,7 @@ RETRY_TIMES = 10
 # http://username:password@host2:port
 # http://host3:port
 # ...
-# PROXY_LIST = './free_proxies.txt'
+# ROTATING_PROXY_LIST_PATH = './free_proxies.txt'
 
 # Proxy mode
 # 0 = Every requests have different proxy
@@ -97,7 +83,7 @@ RETRY_TIMES = 10
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-# AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_ENABLED = True
 # # The initial download delay
 # AUTOTHROTTLE_START_DELAY = 10
 # # The maximum download delay to be set in case of high latencies
@@ -110,7 +96,7 @@ RETRY_TIMES = 10
 
 # Enable and configure HTTP caching (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html#httpcache-middleware-settings
-# HTTPCACHE_ENABLED = True
+HTTPCACHE_ENABLED = True
 #HTTPCACHE_EXPIRATION_SECS = 0
 #HTTPCACHE_DIR = 'httpcache'
 #HTTPCACHE_IGNORE_HTTP_CODES = []
