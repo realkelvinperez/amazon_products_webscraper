@@ -20,8 +20,12 @@ def get_url(url):
 
 
 def clean_text(text):
-    new_text = " ".join(text.split())
-    return new_text
+    new_text = " ".join(text.split()).strip()
+    if "\\" in new_text:
+        remove_escaped_chars = new_text.replace('\\', '')
+        return remove_escaped_chars
+    else:
+        return new_text
 
 
 class AmazonSpider(scrapy.Spider):
@@ -39,11 +43,13 @@ class AmazonSpider(scrapy.Spider):
         # sold by amazon = True
         # url = 'https://www.amazon.com/dp/B08J5Y89C7?ref=ods_ucc_kindle_B08J5Y89C7_rc_nd_ucc'
         # sold by amazon = False
-        url = 'https://www.amazon.com/Ashley-Furniture-Signature-Design-Mattress/dp/B0777K9RGX/ref=sr_1_19?dchild=1&qid=1602614531&refinements=p_36%3A15000-&s=home-garden&sr=1-19&th=1'
+        url = 'https://www.amazon.com/Linon-PG139WHT01U-Desk-White/dp/B07FDHMDD3/ref=sr_1_2415?dchild=1&qid=1602868163&refinements=p_36%3A15000-&s=home-garden&sr=1-2415'
         yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
+
         products = response.xpath('//*[@data-component-type="s-search-result"]')
+
         for product in products:
 
             is_prime = product.xpath('.//*[@aria-label="Amazon Prime"]')
@@ -55,10 +61,15 @@ class AmazonSpider(scrapy.Spider):
 
                 product_url = f"https://www.amazon.com/dp/{asin}"
 
+                price = None
+                title = None
+
                 meta = {
                     "isPrime": is_prime,
                     "asin": asin,
-                    "url": product_url
+                    "url": product_url,
+                    "title": title,
+                    "price": price
                 }
 
                 yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
@@ -73,13 +84,16 @@ class AmazonSpider(scrapy.Spider):
         #     yield scrapy.Request(url=get_url(url), callback=self.parse)
 
         # TODO: Disable for production
+
         if self.page < 4:
             self.page += 1
             url = paginate_url(self.page)
             logging.info(url)
+
             yield scrapy.Request(url=get_url(url), callback=self.parse)
 
-    def parse_sold_by(self, response):
+    def parse_buying_options(self, response):
+        # only run if prop is not already assigned
         # get main sellers name
         def get_sold_by():
             has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
@@ -90,28 +104,44 @@ class AmazonSpider(scrapy.Spider):
                 return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
             pass
 
-        self.product['soldBy'] = get_sold_by()
-
+        # get sold by
+        if 'soldBy' not in self.product:
+            self.product['soldBy'] = get_sold_by()
         # get third party seller price
-        self.product['price'] = response.css(".a-price-whole::text").get()
+        if 'price' not in self.product:
+            self.product['price'] = response.css(".a-price-whole::text").get()
+            # self.product['price'] = get_price()
         # Number of sellers on the listing
-        self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
+        if 'sellers' not in self.product:
+            self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
+            # self.product['sellers'] = get_sellers()
 
         yield self.product
 
     def parse_product_details(self, response):
-        # aod-total-offer-count > total number os sellers selector
+
+        more_options_url = response.css("#olp-upd-new-used a:attr(href)").get()
 
         if response.meta:
+            # set props to meta values if avaliable
+            # set price
+            # set asin
+            # set isPrime
+            # set title
+            # set url
+
             pass
 
         def get_asin():
+
             asin_pattern = re.compile(r"([A-Z0-9]{10})")
             asin_string = response.css("link[rel='canonical']::attr(href)").get()
             asin = asin_pattern.search(asin_string)[0]
+
             return asin
 
         def get_sold_by_amazon():
+
             # get the node
             node = response.css("td .a-truncate.buybox-tabular-content.a-size-small").get()
             # if node
@@ -128,32 +158,129 @@ class AmazonSpider(scrapy.Spider):
                 return "false"
 
         def get_bsr():
-            has_product_info_node = response.css('#productDetails_detailBullets_sections1').get()
 
-            if not has_product_info_node:
-                product_info_node = response.css('#detailBulletsWrapper_feature_div').get()
+            bsr_selectors = [
+                '#productDetails_detailBullets_sections1',
+                '#productDetails_db_sections',
+                '#detailBulletsWrapper_feature_div'
+            ]
+
+            for selector in bsr_selectors:
+                # loop through all of the selector to see which one is true
+                product_info_node = response.css(selector).get()
+
+                if product_info_node:
+                    bsr_pattern = re.compile("<span>#(\d*,?\d*,?\d*)")
+                    matches = bsr_pattern.findall(product_info_node)
+                    bsr_text = matches[0].replace(",", '')
+                    bsr = int(bsr_text)
+
+                    return bsr
+
+        def get_fba():
+
+            fba_node = response.css("#buybox").get()
+
+            if fba_node:
+                has_fba = "Fulfilled" in fba_node
+
+                if has_fba:
+                    return "true"
+                else:
+                    return "false"
             else:
-                product_info_node = has_product_info_node
+                return "false"
 
-            if product_info_node:
-                bsr_pattern = re.compile("<span>#(\d*,?\d*,?\d*)")
-                matches = bsr_pattern.findall(product_info_node)
-                bsr = matches[0]
-                return bsr
+        def get_about_bullets():
+
+            about_bullets = response.xpath("//*[@id='feature-bullets']/ul/li")
+
+            all_about_bullets = []
+
+            for bullet in about_bullets:
+                bullet_text = bullet.xpath('.//span/text()').get()
+                single_bullet = clean_text(bullet_text)
+                all_about_bullets.append(single_bullet)
+
+            return all_about_bullets
+
+        def get_description():
+
+            description_node = response.css("#productDescription > p::text").get()
+
+            if description_node:
+                return clean_text(description_node)
+            else:
+                return None
+
+        def get_title():
+            title_text = response.css("#productTitle::text").get()
+            title = clean_text(title_text)
+            return title
+
+        def get_image_urls():
+           return None
+
+        def get_in_stock():
+            in_stock_node = response.css("#availabilityInsideBuyBox_feature_div #availability span::text").get()
+
+            if in_stock_node:
+                in_stock_text = clean_text(in_stock_node)
+                if "In stock" in in_stock_text:
+                    return "true"
+                else:
+                    return "false"
+
+        def get_buy_box():
+            buy_box_node = response.css("#add-to-cart-button").get()
+            if buy_box_node:
+                return 'true'
+            else:
+                return 'false'
+
+        def get_rating():
+            rating_node = response.css("#acrPopover").get()
+            rating_pattern = re.compile(r'(\d+\.\d+|\d+)')
+            rating_text = rating_pattern.search(rating_node)
+            rating = float(rating_text[0])
+            return rating
+
+        def get_total_reviews():
+            return None
+            pass
+
+        if 'asin' not in self.product:
+            self.product['asin'] = get_asin()
+
+        if 'title' not in self.product:
+            self.product['title'] = get_title()
 
         self.product['bsr'] = get_bsr()
-        self.product['asin'] = get_asin()
+        self.product['imageUrls'] = get_image_urls()
         self.product['soldByAmazon'] = get_sold_by_amazon()
+        self.product['rating'] = get_rating()
+        self.product['totalReviews'] = get_total_reviews()
+        self.product['isFba'] = get_fba()
+        self.product['aboutBullets'] = get_about_bullets()
+        self.product['description'] = get_description()
+        self.product['hasBuyBox'] = get_buy_box()
+        self.product['inStock'] = get_in_stock()
+
+        self.product['category'] = "Home & Kitchen"
 
         # after harvesting all of the product details make second request for the rest of the data
+        # only execute 2nd call if the extra categories are missing
 
-        if self.product['asin']:
+        if 'asin' in self.product and 'price' not in self.product and more_options_url:
+
             buying_options_btn = response.css("#buybox-see-all-buying-choices-announce").get()
             more_sellers_link = response.css("#olp-upd-new").get()
             availability = response.css("#availability").get()
+            asin = self.product['asin']
+
             if buying_options_btn or more_sellers_link or availability:
-                buying_options_url = get_url(
-                    f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_NEW_mbc?asin={self.product['asin']}")
-                yield scrapy.Request(url=buying_options_url, callback=self.parse_sold_by)
+                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_ALL_mbc?asin={asin}&m=&pinnedofferhash=&qid=1602868163&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=1-2411"
+                buying_options_url = get_url(url)
+                yield scrapy.Request(url=buying_options_url, callback=self.parse_buying_options)
             else:
                 yield self.product

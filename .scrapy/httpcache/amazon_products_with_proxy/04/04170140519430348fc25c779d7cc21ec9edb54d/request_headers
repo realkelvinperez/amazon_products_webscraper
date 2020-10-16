@@ -1,5 +1,0 @@
-Referer: http://api.scraperapi.com/?api_key=0dabb38ed3e0603f8b4f1a354a443476&url=https%3A%2F%2Fwww.amazon.com%2Fs%3Fi%3Dgarden%26bbn%3D3295676011%26%26low-price%3D150%26high-price%3D&country_code=us
-Accept: text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8
-Accept-Language: en
-User-Agent: Scrapy/2.3.0 (+https://scrapy.org)
-Accept-Encoding: gzip, deflate
