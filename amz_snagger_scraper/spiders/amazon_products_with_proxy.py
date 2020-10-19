@@ -56,7 +56,6 @@ class AmazonSpider(scrapy.Spider):
             logging.info(is_prime)
 
             if not is_prime:
-
                 asin = product.xpath('@data-asin').extract_first()
 
                 product_url = f"https://www.amazon.com/dp/{asin}"
@@ -89,17 +88,18 @@ class AmazonSpider(scrapy.Spider):
             self.page += 1
             url = paginate_url(self.page)
             logging.info(url)
-
             yield scrapy.Request(url=get_url(url), callback=self.parse)
 
     def parse_buying_options(self, response):
         # only run if prop is not already assigned
         # get main sellers name
+        # TODO: redo
         def get_sold_by():
             has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
             has_pinned_offer = response.css("#aod-pinned-offer")
             if has_see_more_link or has_pinned_offer:
-                return clean_text(response.css("#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
+                return clean_text(response.css(
+                    "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
             else:
                 return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
             pass
@@ -109,12 +109,14 @@ class AmazonSpider(scrapy.Spider):
             self.product['soldBy'] = get_sold_by()
         # get third party seller price
         if 'price' not in self.product:
-            self.product['price'] = response.css(".a-price-whole::text").get()
+            # TODO: convert to a functions
             # self.product['price'] = get_price()
+            self.product['price'] = response.css(".a-price-whole::text").get()
         # Number of sellers on the listing
         if 'sellers' not in self.product:
-            self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
+            # TODO: convert to a functions
             # self.product['sellers'] = get_sellers()
+            self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
 
         yield self.product
 
@@ -123,13 +125,12 @@ class AmazonSpider(scrapy.Spider):
         more_options_url = response.css("#olp-upd-new-used a:attr(href)").get()
 
         if response.meta:
-            # set props to meta values if avaliable
+            # set props to meta values if available
             # set price
             # set asin
             # set isPrime
             # set title
             # set url
-
             pass
 
         def get_asin():
@@ -174,8 +175,9 @@ class AmazonSpider(scrapy.Spider):
                     matches = bsr_pattern.findall(product_info_node)
                     bsr_text = matches[0].replace(",", '')
                     bsr = int(bsr_text)
-
                     return bsr
+                else:
+                    return None
 
         def get_fba():
 
@@ -219,7 +221,7 @@ class AmazonSpider(scrapy.Spider):
             return title
 
         def get_image_urls():
-           return None
+            return None
 
         def get_in_stock():
             in_stock_node = response.css("#availabilityInsideBuyBox_feature_div #availability span::text").get()
@@ -256,10 +258,10 @@ class AmazonSpider(scrapy.Spider):
             self.product['title'] = get_title()
 
         self.product['bsr'] = get_bsr()
-        self.product['imageUrls'] = get_image_urls()
+        # self.product['imageUrls'] = get_image_urls()
         self.product['soldByAmazon'] = get_sold_by_amazon()
         self.product['rating'] = get_rating()
-        self.product['totalReviews'] = get_total_reviews()
+        # self.product['totalReviews'] = get_total_reviews()
         self.product['isFba'] = get_fba()
         self.product['aboutBullets'] = get_about_bullets()
         self.product['description'] = get_description()
@@ -271,6 +273,7 @@ class AmazonSpider(scrapy.Spider):
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing
 
+        # TODO: convert this to a function
         if 'asin' in self.product and 'price' not in self.product and more_options_url:
 
             buying_options_btn = response.css("#buybox-see-all-buying-choices-announce").get()
