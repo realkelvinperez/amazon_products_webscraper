@@ -1,9 +1,11 @@
 import scrapy
 from urllib.parse import urlencode
 import re
-import json
-from ..items import Product
+# import json
+from amz_snagger_scraper.items import Product
 import logging
+import uuid
+
 API = '0dabb38ed3e0603f8b4f1a354a443476'
 
 
@@ -13,10 +15,10 @@ def paginate_url(page):
 
 
 def get_url(url):
-    # payload = {'api_key': API, 'url': url, 'country_code': 'us'}
-    # proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
-    # return proxy_url
-    return url
+    payload = {'api_key': API, 'url': url, 'country_code': 'us'}
+    proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
+    return proxy_url
+    # return url
 
 
 def clean_text(text):
@@ -215,7 +217,7 @@ class AmazonSpider(scrapy.Spider):
 
         def get_description():
 
-            description_node = response.css("#productDescription > p span::text").get()
+            description_node = response.css("#productDescription p::text").get()
 
             if description_node:
                 return clean_text(description_node)
@@ -231,6 +233,7 @@ class AmazonSpider(scrapy.Spider):
             return None
 
         def get_in_stock():
+
             in_stock_node = response.css("#availabilityInsideBuyBox_feature_div #availability span::text").get()
 
             if in_stock_node:
@@ -241,14 +244,18 @@ class AmazonSpider(scrapy.Spider):
                     return "false"
 
         def get_buy_box():
+
             buy_box_node = response.css("#add-to-cart-button").get()
+
             if buy_box_node:
                 return 'true'
             else:
                 return 'false'
 
         def get_rating():
+
             rating_node = response.css("#acrPopover").get()
+
             if rating_node:
                 rating_pattern = re.compile(r'(\d+\.\d+|\d+)')
                 rating_text = rating_pattern.search(rating_node)
@@ -257,11 +264,8 @@ class AmazonSpider(scrapy.Spider):
             else:
                 return None
 
-        def get_total_reviews():
-            return None
-            pass
-
         def get_sold_by():
+
             sold_by_node = response.css("#buyboxTabularTruncate-1 span::text").get()
             if sold_by_node:
                 sold_by = clean_text(sold_by_node)
@@ -270,7 +274,9 @@ class AmazonSpider(scrapy.Spider):
                 return None
 
         def get_sellers():
+
             sellers_node = response.css("#olp-upd-new-used a span:nth-child(1)::text").get()
+
             if sellers_node:
                 sellers_text = clean_text(sellers_node)
                 sellers_pattern = re.compile(r"\((\d+)\)")
@@ -281,13 +287,25 @@ class AmazonSpider(scrapy.Spider):
                 return None
 
         def get_price():
+
             price_node = response.css("#priceblock_ourprice::text").get()
+
             if price_node:
                 price_pattern = re.compile(r"\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})")
                 price_text = clean_text(price_node)
                 price_match = price_pattern.search(price_text)[0]
                 price = float(price_match)
                 return price
+            else:
+                return None
+
+        def get_total_reviews():
+            total_reviews_node = response.css('#averageCustomerReviews_feature_div #acrCustomerReviewText::text').get()
+            if total_reviews_node:
+                total_reviews_pattern = re.compile(r"\d{1,3}(?:[,]\d{3})*")
+                total_reviews_match = total_reviews_pattern.search(total_reviews_node)[0]
+                total_reviews = int(total_reviews_match)
+                return total_reviews
             else:
                 return None
 
@@ -311,9 +329,12 @@ class AmazonSpider(scrapy.Spider):
         self.product['inStock'] = get_in_stock()
         self.product['soldBy'] = get_sold_by()
         self.product['sellers'] = get_sellers()
+        self.product['totalReviews'] = get_total_reviews()
+        self.product['uuid'] = uuid.uuid4().int
 
+        # self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
+        # self.product['variations'] = get_variations()
         # self.product['imageUrls'] = get_image_urls()
-        # self.product['totalReviews'] = get_total_reviews()
 
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing

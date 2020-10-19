@@ -16,14 +16,14 @@ NEWSPIDER_MODULE = 'amz_snagger_scraper.spiders'
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
-DOWNLOADER_MIDDLEWARES = {'scrapy_crawlera.CrawleraMiddleware': 610}
-CRAWLERA_ENABLED = True
-CRAWLERA_APIKEY = 'c2c1a1c3fad94764a68759e9a6bfe682'
-
-CONCURRENT_REQUESTS = 32
-CONCURRENT_REQUESTS_PER_DOMAIN = 32
-AUTOTHROTTLE_ENABLED = False
-DOWNLOAD_TIMEOUT = 600
+# DOWNLOADER_MIDDLEWARES = {'scrapy_crawlera.CrawleraMiddleware': 610}
+# CRAWLERA_ENABLED = True
+# CRAWLERA_APIKEY = 'c2c1a1c3fad94764a68759e9a6bfe682'
+#
+# CONCURRENT_REQUESTS = 32
+# CONCURRENT_REQUESTS_PER_DOMAIN = 32
+# AUTOTHROTTLE_ENABLED = False
+# DOWNLOAD_TIMEOUT = 600
 
 HTTPCACHE_ENABLED = True
 
@@ -95,7 +95,7 @@ HTTPCACHE_ENABLED = True
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-# AUTOTHROTTLE_ENABLED = True
+AUTOTHROTTLE_ENABLED = True
 # # The initial download delay
 # AUTOTHROTTLE_START_DELAY = 10
 # # The maximum download delay to be set in case of high latencies
