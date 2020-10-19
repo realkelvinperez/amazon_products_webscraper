@@ -5,8 +5,6 @@ import json
 from ..items import Product
 import logging
 
-API = '0dabb38ed3e0603f8b4f1a354a443476'
-
 
 def paginate_url(page):
     home_garden_url = f"https://www.amazon.com/s?i=garden&bbn=3295676011&rh=p_36%3A15000-&qid=1602614531&ref=sr_pg_{str(page)}&page={str(page)}"
@@ -14,9 +12,11 @@ def paginate_url(page):
 
 
 def get_url(url):
-    payload = {'api_key': API, 'url': url, 'country_code': 'us'}
-    proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
-    return proxy_url
+    # API = '0dabb38ed3e0603f8b4f1a354a443476'
+    # payload = {'api_key': API, 'url': url, 'country_code': 'us'}
+    # proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
+    # return proxy_url
+    return url
 
 
 def clean_text(text):
@@ -122,7 +122,7 @@ class AmazonSpider(scrapy.Spider):
 
     def parse_product_details(self, response):
 
-        more_options_url = response.css("#olp-upd-new-used a:attr(href)").get()
+        more_options_url = response.css("#olp-upd-new-used a::attr(href)").get()
 
         if response.meta:
             # set props to meta values if available
@@ -135,9 +135,9 @@ class AmazonSpider(scrapy.Spider):
 
         def get_asin():
 
-            asin_pattern = re.compile(r"([A-Z0-9]{10})")
+            asin_pattern = re.compile(r"dp/([A-Z0-9]{10})")
             asin_string = response.css("link[rel='canonical']::attr(href)").get()
-            asin = asin_pattern.search(asin_string)[0]
+            asin = asin_pattern.search(asin_string)[1]
 
             return asin
 
@@ -208,7 +208,7 @@ class AmazonSpider(scrapy.Spider):
 
         def get_description():
 
-            description_node = response.css("#productDescription > p::text").get()
+            description_node = response.css("#productDescription > p span::text").get()
 
             if description_node:
                 return clean_text(description_node)
@@ -228,7 +228,7 @@ class AmazonSpider(scrapy.Spider):
 
             if in_stock_node:
                 in_stock_text = clean_text(in_stock_node)
-                if "In stock" in in_stock_text:
+                if "In Stock" in in_stock_text:
                     return "true"
                 else:
                     return "false"
@@ -274,7 +274,7 @@ class AmazonSpider(scrapy.Spider):
         # only execute 2nd call if the extra categories are missing
 
         # TODO: convert this to a function
-        if 'asin' in self.product and 'price' not in self.product and more_options_url:
+        if 'asin' in self.product and more_options_url:
 
             buying_options_btn = response.css("#buybox-see-all-buying-choices-announce").get()
             more_sellers_link = response.css("#olp-upd-new").get()
@@ -282,7 +282,7 @@ class AmazonSpider(scrapy.Spider):
             asin = self.product['asin']
 
             if buying_options_btn or more_sellers_link or availability:
-                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_ALL_mbc?asin={asin}&m=&pinnedofferhash=&qid=1602868163&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=1-2411"
+                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_ALL_mbc?asin={asin}&m=&pinnedofferhash=&qid=1602868163&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=1-2415"
                 buying_options_url = get_url(url)
                 yield scrapy.Request(url=buying_options_url, callback=self.parse_buying_options)
             else:

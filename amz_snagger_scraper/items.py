@@ -5,6 +5,7 @@
 
 import scrapy
 
+
 class Product(scrapy.Item):
     aboutBullets = scrapy.Field()
     imageUrls = scrapy.Field()

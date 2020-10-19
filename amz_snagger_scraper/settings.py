@@ -16,8 +16,19 @@ NEWSPIDER_MODULE = 'amz_snagger_scraper.spiders'
 # Obey robots.txt rules
 ROBOTSTXT_OBEY = False
 
+DOWNLOADER_MIDDLEWARES = {'scrapy_crawlera.CrawleraMiddleware': 610}
+CRAWLERA_ENABLED = True
+CRAWLERA_APIKEY = 'c2c1a1c3fad94764a68759e9a6bfe682'
+
+CONCURRENT_REQUESTS = 32
+CONCURRENT_REQUESTS_PER_DOMAIN = 32
+AUTOTHROTTLE_ENABLED = False
+DOWNLOAD_TIMEOUT = 600
+
+HTTPCACHE_ENABLED = True
+
 # Configure maximum concurrent requests performed by Scrapy (default: 16)
-CONCURRENT_REQUESTS = 5
+# CONCURRENT_REQUESTS = 5
 
 # Configure a delay for requests for the same website (default: 0)
 # See https://docs.scrapy.org/en/latest/topics/settings.html#download-delay
@@ -50,9 +61,9 @@ CONCURRENT_REQUESTS = 5
 
 # USER_AGENT = 'Mozilla/5.0 (Linux; Android 6.0.1; Nexus 5X Build/MMB29P) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/41.0.2272.96 Mobile Safari/537.36 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)'
 
-# # Retry many times since proxies often fail
+# # # Retry many times since proxies often fail
 # RETRY_TIMES = 10
-# # Retry on most error codes since proxies fail for different reasons
+# # # Retry on most error codes since proxies fail for different reasons
 # RETRY_HTTP_CODES = [500, 503, 504, 400, 403, 404, 408]
 
 # Proxy list containing entries like
@@ -84,7 +95,7 @@ CONCURRENT_REQUESTS = 5
 
 # Enable and configure the AutoThrottle extension (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/autothrottle.html
-AUTOTHROTTLE_ENABLED = True
+# AUTOTHROTTLE_ENABLED = True
 # # The initial download delay
 # AUTOTHROTTLE_START_DELAY = 10
 # # The maximum download delay to be set in case of high latencies
@@ -97,8 +108,6 @@ AUTOTHROTTLE_ENABLED = True
 
 # Enable and configure HTTP caching (disabled by default)
 # See https://docs.scrapy.org/en/latest/topics/downloader-middleware.html#httpcache-middleware-settings
-
-HTTPCACHE_ENABLED = True
 
 #HTTPCACHE_EXPIRATION_SECS = 0
 #HTTPCACHE_DIR = 'httpcache'
