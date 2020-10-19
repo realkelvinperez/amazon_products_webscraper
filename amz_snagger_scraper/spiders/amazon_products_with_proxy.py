@@ -4,6 +4,7 @@ import re
 import json
 from ..items import Product
 import logging
+API = '0dabb38ed3e0603f8b4f1a354a443476'
 
 
 def paginate_url(page):
@@ -12,7 +13,6 @@ def paginate_url(page):
 
 
 def get_url(url):
-    # API = '0dabb38ed3e0603f8b4f1a354a443476'
     # payload = {'api_key': API, 'url': url, 'country_code': 'us'}
     # proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
     # return proxy_url
@@ -135,11 +135,14 @@ class AmazonSpider(scrapy.Spider):
 
         def get_asin():
 
-            asin_pattern = re.compile(r"dp/([A-Z0-9]{10})")
             asin_string = response.css("link[rel='canonical']::attr(href)").get()
-            asin = asin_pattern.search(asin_string)[1]
+            if asin_string:
+                asin_pattern = re.compile(r"dp/([A-Z0-9]{10})")
+                asin = asin_pattern.search(asin_string)[1]
 
-            return asin
+                return asin
+            else:
+                return None
 
         def get_sold_by_amazon():
 
@@ -181,7 +184,7 @@ class AmazonSpider(scrapy.Spider):
 
         def get_fba():
 
-            fba_node = response.css("#buybox").get()
+            fba_node = response.css("#buybox::text").get()
 
             if fba_node:
                 has_fba = "Fulfilled" in fba_node
@@ -197,14 +200,18 @@ class AmazonSpider(scrapy.Spider):
 
             about_bullets = response.xpath("//*[@id='feature-bullets']/ul/li")
 
-            all_about_bullets = []
+            if about_bullets:
 
-            for bullet in about_bullets:
-                bullet_text = bullet.xpath('.//span/text()').get()
-                single_bullet = clean_text(bullet_text)
-                all_about_bullets.append(single_bullet)
+                all_about_bullets = []
 
-            return all_about_bullets
+                for bullet in about_bullets:
+                    bullet_text = bullet.xpath('.//span/text()').get()
+                    single_bullet = clean_text(bullet_text)
+                    all_about_bullets.append(single_bullet)
+
+                return all_about_bullets
+            else:
+                return None
 
         def get_description():
 
@@ -242,14 +249,47 @@ class AmazonSpider(scrapy.Spider):
 
         def get_rating():
             rating_node = response.css("#acrPopover").get()
-            rating_pattern = re.compile(r'(\d+\.\d+|\d+)')
-            rating_text = rating_pattern.search(rating_node)
-            rating = float(rating_text[0])
-            return rating
+            if rating_node:
+                rating_pattern = re.compile(r'(\d+\.\d+|\d+)')
+                rating_text = rating_pattern.search(rating_node)
+                rating = float(rating_text[0])
+                return rating
+            else:
+                return None
 
         def get_total_reviews():
             return None
             pass
+
+        def get_sold_by():
+            sold_by_node = response.css("#buyboxTabularTruncate-1 span::text").get()
+            if sold_by_node:
+                sold_by = clean_text(sold_by_node)
+                return sold_by
+            else:
+                return None
+
+        def get_sellers():
+            sellers_node = response.css("#olp-upd-new-used a span:nth-child(1)::text").get()
+            if sellers_node:
+                sellers_text = clean_text(sellers_node)
+                sellers_pattern = re.compile(r"\((\d+)\)")
+                sellers_match = sellers_pattern.search(sellers_text)[1]
+                sellers = int(sellers_match)
+                return sellers
+            else:
+                return None
+
+        def get_price():
+            price_node = response.css("#priceblock_ourprice::text").get()
+            if price_node:
+                price_pattern = re.compile(r"\d{1,3}(?:[.,]\d{3})*(?:[.,]\d{2})")
+                price_text = clean_text(price_node)
+                price_match = price_pattern.search(price_text)[0]
+                price = float(price_match)
+                return price
+            else:
+                return None
 
         if 'asin' not in self.product:
             self.product['asin'] = get_asin()
@@ -257,18 +297,23 @@ class AmazonSpider(scrapy.Spider):
         if 'title' not in self.product:
             self.product['title'] = get_title()
 
+        if 'price' not in self.product:
+            self.product['price'] = get_price()
+
+        self.product['category'] = "Home & Kitchen"
         self.product['bsr'] = get_bsr()
-        # self.product['imageUrls'] = get_image_urls()
         self.product['soldByAmazon'] = get_sold_by_amazon()
         self.product['rating'] = get_rating()
-        # self.product['totalReviews'] = get_total_reviews()
         self.product['isFba'] = get_fba()
         self.product['aboutBullets'] = get_about_bullets()
         self.product['description'] = get_description()
         self.product['hasBuyBox'] = get_buy_box()
         self.product['inStock'] = get_in_stock()
+        self.product['soldBy'] = get_sold_by()
+        self.product['sellers'] = get_sellers()
 
-        self.product['category'] = "Home & Kitchen"
+        # self.product['imageUrls'] = get_image_urls()
+        # self.product['totalReviews'] = get_total_reviews()
 
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing
@@ -282,7 +327,7 @@ class AmazonSpider(scrapy.Spider):
             asin = self.product['asin']
 
             if buying_options_btn or more_sellers_link or availability:
-                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_ALL_mbc?asin={asin}&m=&pinnedofferhash=&qid=1602868163&smid=&sourcecustomerorglistid=&sourcecustomerorglistitemid=&sr=1-2415"
+                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_ALL_mbc?asin={asin}"
                 buying_options_url = get_url(url)
                 yield scrapy.Request(url=buying_options_url, callback=self.parse_buying_options)
             else:
