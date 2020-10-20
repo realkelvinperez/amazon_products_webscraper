@@ -45,7 +45,7 @@ class AmazonSpider(scrapy.Spider):
         # sold by amazon = True
         # url = 'https://www.amazon.com/dp/B08J5Y89C7?ref=ods_ucc_kindle_B08J5Y89C7_rc_nd_ucc'
         # sold by amazon = False
-        url = 'https://www.amazon.com/dp/B083782T5P'
+        url = 'https://www.amazon.com/dp/B07LCRMMG2'
         yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
@@ -183,7 +183,7 @@ class AmazonSpider(scrapy.Spider):
                     bsr = int(bsr_text)
                     return bsr
                 else:
-                    return None
+                    return 0
 
         def get_fba():
 
@@ -214,7 +214,7 @@ class AmazonSpider(scrapy.Spider):
 
                 return all_about_bullets
             else:
-                return None
+                return []
 
         def get_description():
 
@@ -264,7 +264,8 @@ class AmazonSpider(scrapy.Spider):
 
         def get_sold_by():
 
-            sold_by_node = response.css("#buyboxTabularTruncate-1 span a::text").get() or response.css("#buyboxTabularTruncate-1 span::text").get()
+            sold_by_node = response.css("#buyboxTabularTruncate-1 span a::text").get() or \
+                           response.css("#buyboxTabularTruncate-1 span::text").get()
             if sold_by_node:
                 sold_by = clean_text(sold_by_node)
                 return sold_by
@@ -334,6 +335,22 @@ class AmazonSpider(scrapy.Spider):
                     "colors": colors
                 }
 
+        def get_seller_name_in_product_name():
+            lowercase_title = self.product['title'].lower()
+            lowercase_seller_name = self.product['soldBy'].lower()
+            seller_name_list = lowercase_seller_name.split()
+
+            if seller_name_list:
+                result = None
+                for name in seller_name_list:
+                    result = name in lowercase_title
+                if result:
+                    return 'true'
+                else:
+                    return 'false'
+            else:
+                return None
+
         if 'asin' not in self.product:
             self.product['asin'] = get_asin()
 
@@ -358,8 +375,7 @@ class AmazonSpider(scrapy.Spider):
         self.product['uuid'] = uuid.uuid4().int
         self.product['image'] = get_image()
         self.product['variations'] = get_variations()
-
-        # self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
+        self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
 
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing
@@ -373,7 +389,7 @@ class AmazonSpider(scrapy.Spider):
             asin = self.product['asin']
 
             if buying_options_btn or more_sellers_link or availability:
-                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_ALL_mbc?asin={asin}"
+                url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_NEW_mbc?asin={asin}"
                 buying_options_url = get_url(url)
                 yield scrapy.Request(url=buying_options_url, callback=self.parse_buying_options)
             else:
