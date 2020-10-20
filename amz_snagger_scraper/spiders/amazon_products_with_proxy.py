@@ -15,10 +15,10 @@ def paginate_url(page):
 
 
 def get_url(url):
-    payload = {'api_key': API, 'url': url, 'country_code': 'us'}
-    proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
-    return proxy_url
-    # return url
+    # payload = {'api_key': API, 'url': url, 'country_code': 'us'}
+    # proxy_url = 'http://api.scraperapi.com/?' + urlencode(payload)
+    # return proxy_url
+    return url
 
 
 def clean_text(text):
@@ -42,7 +42,7 @@ class AmazonSpider(scrapy.Spider):
 
     # Debugging: Product Details Page
     # def start_requests(self):
-    #     url = 'https://www.amazon.com/dp/B07LCRMMG2'
+    #     url = 'https://www.amazon.com/dp/B019EQ1YS2'
     #     yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
@@ -79,31 +79,20 @@ class AmazonSpider(scrapy.Spider):
 
         # TODO: Disable for production
 
-        if self.page < 4:
+        if self.page < 20:
             self.page += 1
             url = paginate_url(self.page)
             logging.info(url)
             yield scrapy.Request(url=get_url(url), callback=self.parse)
 
     def parse_buying_options(self, response):
-        # only run if prop is not already assigned
-        # get main sellers name
-
-        # TODO: redo
         def get_sold_by():
             has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
             has_pinned_offer = response.css("#aod-pinned-offer")
             if has_see_more_link and has_pinned_offer:
-                node = clean_text(response.css(
-                    "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::attr(href)").get())
-                self.product['soldByStoreLink'] = get_seller_store_link(node)
-
                 return clean_text(response.css(
                     "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
             else:
-                node = response.css('#aod-offer-soldBy [role="link"]::attr(href)').get()
-                self.product['soldByStoreLink'] = get_seller_store_link(node)
-
                 return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
             pass
 
@@ -123,35 +112,52 @@ class AmazonSpider(scrapy.Spider):
             else:
                 return None
 
-        def get_seller_store_link(node):
-            pattern = re.compile(r'(?:[seller=]|$)([A-Z0-9]{14})')
-            seller_id = pattern.search(node)[1]
-            store_link = f"https://www.amazon.com/s?me={seller_id}&marketplaceID=ATVPDKIKX0DER"
-            return store_link
+        def get_price():
+
+            price_node = response.css(".a-price-whole::text").get()
+
+            if price_node:
+                price_text = clean_text(price_node)
+                price = float(price_text)
+                return price
+            else:
+                return 0
+
+        def get_seller_store_link():
+            sold_by = self.product['soldBy']
+            if "Amazon" not in sold_by:
+                node = response.css("#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::attr(href)").get() or \
+                       response.css('#aod-offer-soldBy [role="link"]::attr(href)').get()
+                clean_node = clean_text(node)
+                pattern = re.compile(r'(?:[seller=]|$)([A-Z0-9]{11,15})')
+                seller_id = pattern.search(clean_node)[1]
+                store_link = f"https://www.amazon.com/s?me={seller_id}&marketplaceID=ATVPDKIKX0DER"
+
+                return store_link
+            else:
+                return "https://www.Amazon.com"
 
         if not self.product['soldBy']:
             self.product['soldBy'] = get_sold_by()
-        # get third party seller price
+
         if not self.product['price']:
-            # TODO: convert to a functions
-            # self.product['price'] = get_price()
-            self.product['price'] = response.css(".a-price-whole::text").get()
-        # Number of sellers on the listing
+            self.product['price'] = get_price()
+
         if not self.product['sellers']:
             # TODO: convert to a functions
             # self.product['sellers'] = get_sellers()
             self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
 
+        self.product['soldByStoreLink'] = get_seller_store_link()
         self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
 
         yield self.product
 
     def parse_product_details(self, response):
 
-        logging.info('Starting to Harvest >>> ' + response.meta['asin'])
-
         if response.meta:
             # set props to meta values if available
+            logging.info('Starting to Harvest >>> ' + response.meta['asin'])
             self.product['asin'] = response.meta['asin']
             self.product['isPrime'] = response.meta['isPrime']
             self.product['url'] = response.meta['url']
@@ -197,7 +203,9 @@ class AmazonSpider(scrapy.Spider):
                     bsr = int(bsr_text)
                     return bsr
                 else:
-                    return 0
+                    continue
+
+            return 0
 
         def get_fba():
 
@@ -270,13 +278,20 @@ class AmazonSpider(scrapy.Spider):
 
         def get_sold_by():
 
-            sold_by_node = response.css("#buyboxTabularTruncate-1 span a::text").get() or \
-                           response.css("#buyboxTabularTruncate-1 span::text").get()
-            if sold_by_node:
-                sold_by = clean_text(sold_by_node)
-                return sold_by
-            else:
-                return None
+            sold_by_selectors = [
+                "#buyboxTabularTruncate-1 span a::text",
+                "#buyboxTabularTruncate-1 span::text",
+                "#buyboxTabularTruncate-1 span.a-truncate-full::text",
+                "#buyboxTabularTruncate-1 span.a-truncate-cut::text"
+            ]
+
+            for selector in sold_by_selectors:
+                sold_by_node = response.css(selector).get()
+                if sold_by_node:
+                    sold_by = clean_text(sold_by_node)
+                    return sold_by
+
+            return ""
 
         def get_sellers():
 
@@ -359,7 +374,7 @@ class AmazonSpider(scrapy.Spider):
         self.product['soldBy'] = get_sold_by()
         self.product['sellers'] = get_sellers()
         self.product['totalReviews'] = get_total_reviews()
-        self.product['uuid'] = uuid.uuid4().int
+        self.product['uuid'] = str(uuid.uuid4())
         self.product['image'] = get_image()
         self.product['variations'] = get_variations()
 
