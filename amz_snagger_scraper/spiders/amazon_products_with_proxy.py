@@ -36,17 +36,14 @@ class AmazonSpider(scrapy.Spider):
     page = 1
     product = Product()
 
-    # def start_requests(self):
-    #     url = get_url(home_garden_url)
-    #     yield scrapy.Request(url=url, callback=self.parse)
+    def start_requests(self):
+        url = get_url(paginate_url(self.page))
+        yield scrapy.Request(url=url, callback=self.parse)
 
     # Debugging: Product Details Page
-    def start_requests(self):
-        # sold by amazon = True
-        # url = 'https://www.amazon.com/dp/B08J5Y89C7?ref=ods_ucc_kindle_B08J5Y89C7_rc_nd_ucc'
-        # sold by amazon = False
-        url = 'https://www.amazon.com/dp/B07LCRMMG2'
-        yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
+    # def start_requests(self):
+    #     url = 'https://www.amazon.com/dp/B07LCRMMG2'
+    #     yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
 
@@ -54,23 +51,21 @@ class AmazonSpider(scrapy.Spider):
 
         for product in products:
 
-            is_prime = product.xpath('.//*[@aria-label="Amazon Prime"]')
-            logging.info(is_prime)
+            is_prime_node = product.xpath('.//*[@aria-label="Amazon Prime"]')
 
-            if not is_prime:
+            if not is_prime_node:
+
+                is_prime = 'false'
+
                 asin = product.xpath('@data-asin').extract_first()
-
                 product_url = f"https://www.amazon.com/dp/{asin}"
 
-                price = None
-                title = None
+                logging.info(asin)
 
                 meta = {
                     "isPrime": is_prime,
                     "asin": asin,
                     "url": product_url,
-                    "title": title,
-                    "price": price
                 }
 
                 yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
@@ -99,64 +94,71 @@ class AmazonSpider(scrapy.Spider):
         def get_sold_by():
             has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
             has_pinned_offer = response.css("#aod-pinned-offer")
-            if has_see_more_link or has_pinned_offer:
+            if has_see_more_link and has_pinned_offer:
                 return clean_text(response.css(
                     "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
             else:
                 return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
             pass
 
-        # get sold by
-        if 'soldBy' not in self.product:
+        def get_seller_name_in_product_name():
+            lowercase_title = self.product['title'].lower()
+            lowercase_seller_name = self.product['soldBy'].lower()
+            seller_name_list = lowercase_seller_name.split()
+
+            if seller_name_list:
+                result = None
+                for name in seller_name_list:
+                    result = name in lowercase_title
+                if result:
+                    return 'true'
+                else:
+                    return 'false'
+            else:
+                return None
+
+        if not self.product['soldBy']:
             self.product['soldBy'] = get_sold_by()
         # get third party seller price
-        if 'price' not in self.product:
+        if not self.product['price']:
             # TODO: convert to a functions
             # self.product['price'] = get_price()
             self.product['price'] = response.css(".a-price-whole::text").get()
         # Number of sellers on the listing
-        if 'sellers' not in self.product:
+        if not self.product['sellers']:
             # TODO: convert to a functions
             # self.product['sellers'] = get_sellers()
             self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
+
+        self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
 
         yield self.product
 
     def parse_product_details(self, response):
 
-        more_options_url = response.css("#olp-upd-new-used a::attr(href)").get()
+        # more_options_url = response.css("#olp-upd-new-used a::attr(href)").get()
 
-        if response.meta and False:
-            self.product['price'] = 323
+        if response.meta:
             # set props to meta values if available
-            # set price
-            # set asin
-            # set isPrime
-            # set title
-            # set url
-            pass
+            self.product['asin'] = response.meta['asin']
+            self.product['isPrime'] = response.meta['isPrime']
+            self.product['url'] = response.meta['url']
 
         def get_asin():
 
             asin_string = response.css("link[rel='canonical']::attr(href)").get()
             if asin_string:
                 asin_pattern = re.compile(r"dp/([A-Z0-9]{10})")
-                asin = asin_pattern.search(asin_string)[1]
-
-                return asin
+                asin_result = asin_pattern.search(asin_string)[1]
+                return asin_result
             else:
                 return None
 
         def get_sold_by_amazon():
 
-            # get the node
             node = response.css("td .a-truncate.buybox-tabular-content.a-size-small").get()
-            # if node
-            # remove any extra white space
             if node:
-                # check to see if text inside node includes "sold by Amazon.com"
                 has_text = "Amazon.com" in node
-                # if True set to "true" if False set to "false"
                 if has_text:
                     return "true"
                 else:
@@ -177,7 +179,7 @@ class AmazonSpider(scrapy.Spider):
                 product_info_node = response.css(selector).get()
 
                 if product_info_node:
-                    bsr_pattern = re.compile("<span>#(\d*,?\d*,?\d*)")
+                    bsr_pattern = re.compile(r"<span>#(\d*,?\d*,?\d*)")
                     matches = bsr_pattern.findall(product_info_node)
                     bsr_text = matches[0].replace(",", '')
                     bsr = int(bsr_text)
@@ -296,14 +298,15 @@ class AmazonSpider(scrapy.Spider):
                 price = float(price_match)
                 return price
             else:
-                return None
+                return 0
 
         def get_total_reviews():
             total_reviews_node = response.css('#averageCustomerReviews_feature_div #acrCustomerReviewText::text').get()
             if total_reviews_node:
                 total_reviews_pattern = re.compile(r"\d{1,3}(?:[,]\d{3})*")
                 total_reviews_match = total_reviews_pattern.search(total_reviews_node)[0]
-                total_reviews = int(total_reviews_match)
+                clean_total_reviews = "".join(total_reviews_match.split(','))
+                total_reviews = int(clean_total_reviews)
                 return total_reviews
             else:
                 return 0
@@ -335,31 +338,11 @@ class AmazonSpider(scrapy.Spider):
                     "colors": colors
                 }
 
-        def get_seller_name_in_product_name():
-            lowercase_title = self.product['title'].lower()
-            lowercase_seller_name = self.product['soldBy'].lower()
-            seller_name_list = lowercase_seller_name.split()
-
-            if seller_name_list:
-                result = None
-                for name in seller_name_list:
-                    result = name in lowercase_title
-                if result:
-                    return 'true'
-                else:
-                    return 'false'
-            else:
-                return None
-
         if 'asin' not in self.product:
             self.product['asin'] = get_asin()
 
-        if 'title' not in self.product:
-            self.product['title'] = get_title()
-
-        if 'price' not in self.product:
-            self.product['price'] = get_price()
-
+        self.product['title'] = get_title()
+        self.product['price'] = get_price()
         self.product['category'] = "Home & Kitchen"
         self.product['bsr'] = get_bsr()
         self.product['soldByAmazon'] = get_sold_by_amazon()
@@ -375,7 +358,7 @@ class AmazonSpider(scrapy.Spider):
         self.product['uuid'] = uuid.uuid4().int
         self.product['image'] = get_image()
         self.product['variations'] = get_variations()
-        self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
+
 
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing
