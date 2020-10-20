@@ -1,7 +1,7 @@
 import scrapy
 from urllib.parse import urlencode
 import re
-# import json
+import json
 from amz_snagger_scraper.items import Product
 import logging
 import uuid
@@ -45,7 +45,7 @@ class AmazonSpider(scrapy.Spider):
         # sold by amazon = True
         # url = 'https://www.amazon.com/dp/B08J5Y89C7?ref=ods_ucc_kindle_B08J5Y89C7_rc_nd_ucc'
         # sold by amazon = False
-        url = 'https://www.amazon.com/Linon-PG139WHT01U-Desk-White/dp/B07FDHMDD3/ref=sr_1_2415?dchild=1&qid=1602868163&refinements=p_36%3A15000-&s=home-garden&sr=1-2415'
+        url = 'https://www.amazon.com/dp/B083782T5P'
         yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
@@ -126,7 +126,8 @@ class AmazonSpider(scrapy.Spider):
 
         more_options_url = response.css("#olp-upd-new-used a::attr(href)").get()
 
-        if response.meta:
+        if response.meta and False:
+            self.product['price'] = 323
             # set props to meta values if available
             # set price
             # set asin
@@ -222,15 +223,12 @@ class AmazonSpider(scrapy.Spider):
             if description_node:
                 return clean_text(description_node)
             else:
-                return None
+                return ""
 
         def get_title():
             title_text = response.css("#productTitle::text").get()
             title = clean_text(title_text)
             return title
-
-        def get_image_urls():
-            return None
 
         def get_in_stock():
 
@@ -238,7 +236,7 @@ class AmazonSpider(scrapy.Spider):
 
             if in_stock_node:
                 in_stock_text = clean_text(in_stock_node)
-                if "In Stock" in in_stock_text:
+                if "In Stock" in in_stock_text or "In stock" in in_stock_text:
                     return "true"
                 else:
                     return "false"
@@ -262,11 +260,11 @@ class AmazonSpider(scrapy.Spider):
                 rating = float(rating_text[0])
                 return rating
             else:
-                return None
+                return 0
 
         def get_sold_by():
 
-            sold_by_node = response.css("#buyboxTabularTruncate-1 span::text").get()
+            sold_by_node = response.css("#buyboxTabularTruncate-1 span a::text").get() or response.css("#buyboxTabularTruncate-1 span::text").get()
             if sold_by_node:
                 sold_by = clean_text(sold_by_node)
                 return sold_by
@@ -284,7 +282,7 @@ class AmazonSpider(scrapy.Spider):
                 sellers = int(sellers_match)
                 return sellers
             else:
-                return None
+                return 0
 
         def get_price():
 
@@ -307,7 +305,34 @@ class AmazonSpider(scrapy.Spider):
                 total_reviews = int(total_reviews_match)
                 return total_reviews
             else:
-                return None
+                return 0
+
+        def get_image():
+
+            image_node = clean_text(response.css("#imageBlock_feature_div > script::text").get())
+
+            if image_node:
+                pattern = re.compile(r'"large":"(.*?)"')
+                match = pattern.search(image_node)[1]
+                image = clean_text(match)
+                return image
+            else:
+                return []
+
+        def get_variations():
+
+            variations_node = response.xpath('//*[@id="twister"]')
+
+            if variations_node:
+                s = re.search('"variationValues" : ({.*})', response.text).groups()[0]
+                json_acceptable = s.replace("'", "\"")
+                variations_json = json.loads(json_acceptable)
+                sizes = variations_json.get('size_name', [])
+                colors = variations_json.get('color_name', [])
+                return {
+                    "sizes": sizes,
+                    "colors": colors
+                }
 
         if 'asin' not in self.product:
             self.product['asin'] = get_asin()
@@ -331,16 +356,16 @@ class AmazonSpider(scrapy.Spider):
         self.product['sellers'] = get_sellers()
         self.product['totalReviews'] = get_total_reviews()
         self.product['uuid'] = uuid.uuid4().int
+        self.product['image'] = get_image()
+        self.product['variations'] = get_variations()
 
         # self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
-        # self.product['variations'] = get_variations()
-        # self.product['imageUrls'] = get_image_urls()
 
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing
 
         # TODO: convert this to a function
-        if 'asin' in self.product and more_options_url:
+        if 'asin' in self.product:
 
             buying_options_btn = response.css("#buybox-see-all-buying-choices-announce").get()
             more_sellers_link = response.css("#olp-upd-new").get()

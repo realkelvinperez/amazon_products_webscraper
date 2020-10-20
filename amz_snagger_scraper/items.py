@@ -8,7 +8,7 @@ import scrapy
 
 class Product(scrapy.Item):
     aboutBullets = scrapy.Field()
-    imageUrls = scrapy.Field()
+    image = scrapy.Field()
     title = scrapy.Field()
     asin = scrapy.Field()
     url = scrapy.Field()
@@ -28,5 +28,3 @@ class Product(scrapy.Item):
     price = scrapy.Field()
     uuid = scrapy.Field()
     isSellerNameInProductName = scrapy.Field()
-    # upc = scrapy.Field()
-    # ean = scrapy.Field()
