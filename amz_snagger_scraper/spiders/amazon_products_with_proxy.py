@@ -60,8 +60,6 @@ class AmazonSpider(scrapy.Spider):
                 asin = product.xpath('@data-asin').extract_first()
                 product_url = f"https://www.amazon.com/dp/{asin}"
 
-                logging.info(asin)
-
                 meta = {
                     "isPrime": is_prime,
                     "asin": asin,
@@ -90,14 +88,22 @@ class AmazonSpider(scrapy.Spider):
     def parse_buying_options(self, response):
         # only run if prop is not already assigned
         # get main sellers name
+
         # TODO: redo
         def get_sold_by():
             has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
             has_pinned_offer = response.css("#aod-pinned-offer")
             if has_see_more_link and has_pinned_offer:
+                node = clean_text(response.css(
+                    "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::attr(href)").get())
+                self.product['soldByStoreLink'] = get_seller_store_link(node)
+
                 return clean_text(response.css(
                     "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
             else:
+                node = response.css('#aod-offer-soldBy [role="link"]::attr(href)').get()
+                self.product['soldByStoreLink'] = get_seller_store_link(node)
+
                 return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
             pass
 
@@ -116,6 +122,12 @@ class AmazonSpider(scrapy.Spider):
                     return 'false'
             else:
                 return None
+
+        def get_seller_store_link(node):
+            pattern = re.compile(r'(?:[seller=]|$)([A-Z0-9]{14})')
+            seller_id = pattern.search(node)[1]
+            store_link = f"https://www.amazon.com/s?me={seller_id}&marketplaceID=ATVPDKIKX0DER"
+            return store_link
 
         if not self.product['soldBy']:
             self.product['soldBy'] = get_sold_by()
@@ -136,7 +148,7 @@ class AmazonSpider(scrapy.Spider):
 
     def parse_product_details(self, response):
 
-        # more_options_url = response.css("#olp-upd-new-used a::attr(href)").get()
+        logging.info('Starting to Harvest >>> ' + response.meta['asin'])
 
         if response.meta:
             # set props to meta values if available
@@ -212,7 +224,10 @@ class AmazonSpider(scrapy.Spider):
                 for bullet in about_bullets:
                     bullet_text = bullet.xpath('.//span/text()').get()
                     single_bullet = clean_text(bullet_text)
-                    all_about_bullets.append(single_bullet)
+                    if single_bullet == '':
+                        continue
+                    else:
+                        all_about_bullets.append(single_bullet)
 
                 return all_about_bullets
             else:
@@ -231,17 +246,6 @@ class AmazonSpider(scrapy.Spider):
             title_text = response.css("#productTitle::text").get()
             title = clean_text(title_text)
             return title
-
-        def get_in_stock():
-
-            in_stock_node = response.css("#availabilityInsideBuyBox_feature_div #availability span::text").get()
-
-            if in_stock_node:
-                in_stock_text = clean_text(in_stock_node)
-                if "In Stock" in in_stock_text or "In stock" in in_stock_text:
-                    return "true"
-                else:
-                    return "false"
 
         def get_buy_box():
 
@@ -338,6 +342,7 @@ class AmazonSpider(scrapy.Spider):
                     "colors": colors
                 }
 
+
         if 'asin' not in self.product:
             self.product['asin'] = get_asin()
 
@@ -351,7 +356,6 @@ class AmazonSpider(scrapy.Spider):
         self.product['aboutBullets'] = get_about_bullets()
         self.product['description'] = get_description()
         self.product['hasBuyBox'] = get_buy_box()
-        self.product['inStock'] = get_in_stock()
         self.product['soldBy'] = get_sold_by()
         self.product['sellers'] = get_sellers()
         self.product['totalReviews'] = get_total_reviews()
