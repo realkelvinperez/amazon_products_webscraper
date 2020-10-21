@@ -44,7 +44,7 @@ class AmazonSpider(scrapy.Spider):
         # Debugging: Product Details Page
         def start_requests(self):
             url = 'https://www.amazon.com/dp/B01AXM4WV2'
-            yield scrapy.Request(url=get_url(url), callback=self.parse_product_details, dont_filter=True)
+            yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
     else:
         # Production
         def start_requests(self):
@@ -73,7 +73,7 @@ class AmazonSpider(scrapy.Spider):
                     "url": product_url,
                 }
 
-                yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, dont_filter=True, meta=meta)
+                yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
 
 
 
@@ -94,77 +94,7 @@ class AmazonSpider(scrapy.Spider):
             #     logging.info(next_page)
             #     url = f"https://www.amazon.com{next_page}"
             #     logging.info(url)
-            #     yield scrapy.Request(url=get_url(url), callback=self.parse , dont_filter=True)
-
-    def parse_buying_options(self, response):
-        product = response.meta['product']
-
-        def get_sold_by():
-            has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
-            has_pinned_offer = response.css("#aod-pinned-offer")
-            if has_see_more_link and has_pinned_offer:
-                return clean_text(response.css(
-                    "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
-            else:
-                return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
-            pass
-
-        def get_seller_name_in_product_name():
-            lowercase_title = product['title'].lower()
-            lowercase_seller_name = product['soldBy'].lower()
-            seller_name_list = lowercase_seller_name.split()
-
-            if seller_name_list:
-                result = None
-                for name in seller_name_list:
-                    result = name in lowercase_title
-                if result:
-                    return 'true'
-                else:
-                    return 'false'
-            else:
-                return None
-
-        def get_price():
-
-            price_node = response.css(".a-price-whole::text").get()
-
-            if price_node:
-                price_text = clean_text(price_node)
-                price = float(price_text)
-                return price
-            else:
-                return 0
-
-        def get_seller_store_link():
-            sold_by = product['soldBy']
-            if "Amazon" not in sold_by:
-                node = response.css("#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::attr(href)").get() or \
-                       response.css('#aod-offer-soldBy [role="link"]::attr(href)').get()
-                clean_node = clean_text(node)
-                pattern = re.compile(r'(?:[seller=]|$)([A-Z0-9]{11,15})')
-                seller_id = pattern.search(clean_node)[1]
-                store_link = f"https://www.amazon.com/s?me={seller_id}&marketplaceID=ATVPDKIKX0DER"
-
-                return store_link
-            else:
-                return "https://www.Amazon.com"
-
-        if not product['soldBy']:
-            product['soldBy'] = get_sold_by()
-
-        if not product['price']:
-            product['price'] = get_price()
-
-        if not product['sellers']:
-            # TODO: convert to a functions
-            # product['sellers'] = get_sellers()
-            product['sellers'] = int(response.css("#aod-total-offer-count::attr(value)").get())
-
-        product['soldByStoreLink'] = get_seller_store_link()
-        product['isSellerNameInProductName'] = get_seller_name_in_product_name()
-
-        yield product
+            #     yield scrapy.Request(url=get_url(url), callback=self.parse )
 
     def parse_product_details(self, response):
         product = Product()
@@ -423,3 +353,73 @@ class AmazonSpider(scrapy.Spider):
                 url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_NEW_mbc?asin={asin}"
                 buying_options_url = get_url(url)
                 return scrapy.Request(url=buying_options_url, callback=self.parse_buying_options, dont_filter=True, meta={"product": product})
+
+    def parse_buying_options(self, response):
+        product = response.meta['product']
+
+        def get_sold_by():
+            has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
+            has_pinned_offer = response.css("#aod-pinned-offer")
+            if has_see_more_link and has_pinned_offer:
+                return clean_text(response.css(
+                    "#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::text").get())
+            else:
+                return clean_text(response.css('#aod-offer-soldBy [role="link"]::text').get())
+            pass
+
+        def get_seller_name_in_product_name():
+            lowercase_title = product['title'].lower()
+            lowercase_seller_name = product['soldBy'].lower()
+            seller_name_list = lowercase_seller_name.split()
+
+            if seller_name_list:
+                result = None
+                for name in seller_name_list:
+                    result = name in lowercase_title
+                if result:
+                    return 'true'
+                else:
+                    return 'false'
+            else:
+                return None
+
+        def get_price():
+
+            price_node = response.css(".a-price-whole::text").get()
+
+            if price_node:
+                price_text = clean_text(price_node)
+                price = float(price_text)
+                return price
+            else:
+                return 0
+
+        def get_seller_store_link():
+            sold_by = product['soldBy']
+            if "Amazon" not in sold_by:
+                node = response.css("#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::attr(href)").get() or \
+                       response.css('#aod-offer-soldBy [role="link"]::attr(href)').get()
+                clean_node = clean_text(node)
+                pattern = re.compile(r'(?:[seller=]|$)([A-Z0-9]{11,15})')
+                seller_id = pattern.search(clean_node)[1]
+                store_link = f"https://www.amazon.com/s?me={seller_id}&marketplaceID=ATVPDKIKX0DER"
+
+                return store_link
+            else:
+                return "https://www.Amazon.com"
+
+        if not product['soldBy']:
+            product['soldBy'] = get_sold_by()
+
+        if not product['price']:
+            product['price'] = get_price()
+
+        if not product['sellers']:
+            # TODO: convert to a functions
+            # product['sellers'] = get_sellers()
+            product['sellers'] = int(response.css("#aod-total-offer-count::attr(value)").get())
+
+        product['soldByStoreLink'] = get_seller_store_link()
+        product['isSellerNameInProductName'] = get_seller_name_in_product_name()
+
+        yield product
