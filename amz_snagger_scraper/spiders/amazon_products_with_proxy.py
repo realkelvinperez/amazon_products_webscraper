@@ -4,6 +4,7 @@ import re
 import json
 from amz_snagger_scraper.items import Product
 import logging
+from unidecode import unidecode
 import uuid
 
 API = '0dabb38ed3e0603f8b4f1a354a443476'
@@ -23,11 +24,12 @@ def get_url(url):
 
 def clean_text(text):
     new_text = " ".join(text.split()).strip()
-    if "\\" in new_text:
-        remove_escaped_chars = new_text.replace('\\', '')
+    remove_unicode = unidecode(new_text)
+    if r"\'" in remove_unicode:
+        remove_escaped_chars = remove_unicode.replace(r'\'', '')
         return remove_escaped_chars
     else:
-        return new_text
+        return remove_unicode
 
 
 class AmazonSpider(scrapy.Spider):
@@ -35,15 +37,20 @@ class AmazonSpider(scrapy.Spider):
     allowed_domains = ['amazon.com', 'api.scraperapi.com']
     page = 1
     product = Product()
+    debug = False
+    production = False
 
-    def start_requests(self):
-        url = get_url(paginate_url(self.page))
-        yield scrapy.Request(url=url, callback=self.parse)
+    if debug:
+        # Debugging: Product Details Page
+        def start_requests(self):
+            url = 'https://www.amazon.com/dp/B01AXM4WV2'
+            yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
+    else:
+        # Production
+        def start_requests(self):
+            url = get_url(paginate_url(self.page))
+            yield scrapy.Request(url=url, callback=self.parse)
 
-    # Debugging: Product Details Page
-    # def start_requests(self):
-    #     url = 'https://www.amazon.com/dp/B019EQ1YS2'
-    #     yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
 
     def parse(self, response):
 
@@ -52,11 +59,11 @@ class AmazonSpider(scrapy.Spider):
         for product in products:
 
             is_prime_node = product.xpath('.//*[@aria-label="Amazon Prime"]')
+            # logging.info(is_prime_node)
 
             if not is_prime_node:
 
                 is_prime = 'false'
-
                 asin = product.xpath('@data-asin').extract_first()
                 product_url = f"https://www.amazon.com/dp/{asin}"
 
@@ -68,22 +75,27 @@ class AmazonSpider(scrapy.Spider):
 
                 yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
 
-        # TODO: enable for production
-        # next_page = response.xpath('//li[@class="a-last"]/a/@href').extract_first()
-        #
-        # if next_page:
-        #     logging.info(next_page)
-        #     url = f"https://www.amazon.com{next_page}"
-        #     logging.info(url)
-        #     yield scrapy.Request(url=get_url(url), callback=self.parse)
+
 
         # TODO: Disable for production
 
-        if self.page < 20:
-            self.page += 1
-            url = paginate_url(self.page)
-            logging.info(url)
-            yield scrapy.Request(url=get_url(url), callback=self.parse)
+        if self.page and not self.production:
+            if self.page < 20:
+                self.page += 1
+                url = paginate_url(self.page)
+                logging.info(url)
+                yield scrapy.Request(url=get_url(url), callback=self.parse)
+        else:
+            pass
+            # TODO: enable for production
+            # next_page = response.xpath('//li[@class="a-last"]/a/@href').extract_first()
+            #
+            # if next_page:
+            #     logging.info(next_page)
+            #     url = f"https://www.amazon.com{next_page}"
+            #     logging.info(url)
+            #     yield scrapy.Request(url=get_url(url), callback=self.parse)
+
 
     def parse_buying_options(self, response):
         def get_sold_by():
@@ -146,7 +158,7 @@ class AmazonSpider(scrapy.Spider):
         if not self.product['sellers']:
             # TODO: convert to a functions
             # self.product['sellers'] = get_sellers()
-            self.product['sellers'] = response.css("#aod-total-offer-count::attr(value)").get()
+            self.product['sellers'] = int(response.css("#aod-total-offer-count::attr(value)").get())
 
         self.product['soldByStoreLink'] = get_seller_store_link()
         self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
@@ -155,7 +167,7 @@ class AmazonSpider(scrapy.Spider):
 
     def parse_product_details(self, response):
 
-        if response.meta:
+        if response.meta and not self.debug:
             # set props to meta values if available
             logging.info('Starting to Harvest >>> ' + response.meta['asin'])
             self.product['asin'] = response.meta['asin']
@@ -189,7 +201,7 @@ class AmazonSpider(scrapy.Spider):
             bsr_selectors = [
                 '#productDetails_detailBullets_sections1',
                 '#productDetails_db_sections',
-                '#detailBulletsWrapper_feature_div'
+                'div#detailBulletsWrapper_feature_div'
             ]
 
             for selector in bsr_selectors:
@@ -197,11 +209,14 @@ class AmazonSpider(scrapy.Spider):
                 product_info_node = response.css(selector).get()
 
                 if product_info_node:
-                    bsr_pattern = re.compile(r"<span>#(\d*,?\d*,?\d*)")
+                    bsr_pattern = re.compile(r"#(\d*,?\d*,?\d*)\sin")
                     matches = bsr_pattern.findall(product_info_node)
-                    bsr_text = matches[0].replace(",", '')
-                    bsr = int(bsr_text)
-                    return bsr
+                    if matches:
+                        bsr_text = matches[0].replace(",", '')
+                        bsr = int(bsr_text)
+                        return bsr
+                    else:
+                        continue
                 else:
                     continue
 
@@ -209,10 +224,10 @@ class AmazonSpider(scrapy.Spider):
 
         def get_fba():
 
-            fba_node = response.css("#buybox::text").get()
+            fba_node = response.css("#buyboxTabularTruncate-0 span::text").get()
 
             if fba_node:
-                has_fba = "Fulfilled" in fba_node
+                has_fba = "Amazon" in fba_node
 
                 if has_fba:
                     return "true"
@@ -243,12 +258,20 @@ class AmazonSpider(scrapy.Spider):
 
         def get_description():
 
-            description_node = response.css("#productDescription p::text").get()
+            description_selectors = [
+               '#productDescription_feature_div p::text',
+               '#productDescription_feature_div p span::text'
+            ]
 
-            if description_node:
-                return clean_text(description_node)
-            else:
-                return ""
+            for selector in description_selectors:
+                description_node = response.css(selector).get()
+
+                if description_node:
+                    return clean_text(description_node)
+                else:
+                    continue
+
+            return ""
 
         def get_title():
             title_text = response.css("#productTitle::text").get()
@@ -257,7 +280,8 @@ class AmazonSpider(scrapy.Spider):
 
         def get_buy_box():
 
-            buy_box_node = response.css("#add-to-cart-button").get()
+            buy_box_node = response.css("#add-to-cart-button").get() or \
+                           response.css("#usedbuyBox div.a-button-stack").get()
 
             if buy_box_node:
                 return 'true'
@@ -282,7 +306,8 @@ class AmazonSpider(scrapy.Spider):
                 "#buyboxTabularTruncate-1 span a::text",
                 "#buyboxTabularTruncate-1 span::text",
                 "#buyboxTabularTruncate-1 span.a-truncate-full::text",
-                "#buyboxTabularTruncate-1 span.a-truncate-cut::text"
+                "#buyboxTabularTruncate-1 span.a-truncate-cut::text",
+                "a#sellerProfileTriggerId::text"
             ]
 
             for selector in sold_by_selectors:
@@ -348,15 +373,18 @@ class AmazonSpider(scrapy.Spider):
 
             if variations_node:
                 s = re.search('"variationValues" : ({.*})', response.text).groups()[0]
-                json_acceptable = s.replace("'", "\"")
+                json_acceptable = s.replace("\'", "")
                 variations_json = json.loads(json_acceptable)
                 sizes = variations_json.get('size_name', [])
                 colors = variations_json.get('color_name', [])
+                pattern_name = variations_json.get('pattern_name', [])
+                style_name = variations_json.get('pattern_name', [])
                 return {
                     "sizes": sizes,
-                    "colors": colors
+                    "colors": colors,
+                    "patter_name": pattern_name,
+                    "style_name": style_name
                 }
-
 
         if 'asin' not in self.product:
             self.product['asin'] = get_asin()
@@ -394,5 +422,4 @@ class AmazonSpider(scrapy.Spider):
                 url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_NEW_mbc?asin={asin}"
                 buying_options_url = get_url(url)
                 yield scrapy.Request(url=buying_options_url, callback=self.parse_buying_options)
-            else:
-                yield self.product
+
