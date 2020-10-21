@@ -36,7 +36,7 @@ class AmazonSpider(scrapy.Spider):
     name = 'amazon_products_with_proxy'
     allowed_domains = ['amazon.com', 'api.scraperapi.com']
     page = 1
-    product = Product()
+
     debug = False
     production = False
 
@@ -44,12 +44,12 @@ class AmazonSpider(scrapy.Spider):
         # Debugging: Product Details Page
         def start_requests(self):
             url = 'https://www.amazon.com/dp/B01AXM4WV2'
-            yield scrapy.Request(url=get_url(url), callback=self.parse_product_details)
+            yield scrapy.Request(url=get_url(url), callback=self.parse_product_details, dont_filter=True)
     else:
         # Production
         def start_requests(self):
             url = get_url(paginate_url(self.page))
-            yield scrapy.Request(url=url, callback=self.parse)
+            yield scrapy.Request(url=url, callback=self.parse, dont_filter=True)
 
 
     def parse(self, response):
@@ -73,7 +73,7 @@ class AmazonSpider(scrapy.Spider):
                     "url": product_url,
                 }
 
-                yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, meta=meta)
+                yield scrapy.Request(url=get_url(product_url), callback=self.parse_product_details, dont_filter=True, meta=meta)
 
 
 
@@ -84,7 +84,7 @@ class AmazonSpider(scrapy.Spider):
                 self.page += 1
                 url = paginate_url(self.page)
                 logging.info(url)
-                yield scrapy.Request(url=get_url(url), callback=self.parse)
+                yield scrapy.Request(url=get_url(url), callback=self.parse, dont_filter=True)
         else:
             pass
             # TODO: enable for production
@@ -94,10 +94,11 @@ class AmazonSpider(scrapy.Spider):
             #     logging.info(next_page)
             #     url = f"https://www.amazon.com{next_page}"
             #     logging.info(url)
-            #     yield scrapy.Request(url=get_url(url), callback=self.parse)
-
+            #     yield scrapy.Request(url=get_url(url), callback=self.parse , dont_filter=True)
 
     def parse_buying_options(self, response):
+        product = response.meta['product']
+
         def get_sold_by():
             has_see_more_link = response.css("#aod-pinned-offer-show-less-link")
             has_pinned_offer = response.css("#aod-pinned-offer")
@@ -109,8 +110,8 @@ class AmazonSpider(scrapy.Spider):
             pass
 
         def get_seller_name_in_product_name():
-            lowercase_title = self.product['title'].lower()
-            lowercase_seller_name = self.product['soldBy'].lower()
+            lowercase_title = product['title'].lower()
+            lowercase_seller_name = product['soldBy'].lower()
             seller_name_list = lowercase_seller_name.split()
 
             if seller_name_list:
@@ -136,7 +137,7 @@ class AmazonSpider(scrapy.Spider):
                 return 0
 
         def get_seller_store_link():
-            sold_by = self.product['soldBy']
+            sold_by = product['soldBy']
             if "Amazon" not in sold_by:
                 node = response.css("#aod-pinned-offer-additional-content #aod-offer-soldBy span.a-size-small.a-color-base::attr(href)").get() or \
                        response.css('#aod-offer-soldBy [role="link"]::attr(href)').get()
@@ -149,30 +150,31 @@ class AmazonSpider(scrapy.Spider):
             else:
                 return "https://www.Amazon.com"
 
-        if not self.product['soldBy']:
-            self.product['soldBy'] = get_sold_by()
+        if not product['soldBy']:
+            product['soldBy'] = get_sold_by()
 
-        if not self.product['price']:
-            self.product['price'] = get_price()
+        if not product['price']:
+            product['price'] = get_price()
 
-        if not self.product['sellers']:
+        if not product['sellers']:
             # TODO: convert to a functions
-            # self.product['sellers'] = get_sellers()
-            self.product['sellers'] = int(response.css("#aod-total-offer-count::attr(value)").get())
+            # product['sellers'] = get_sellers()
+            product['sellers'] = int(response.css("#aod-total-offer-count::attr(value)").get())
 
-        self.product['soldByStoreLink'] = get_seller_store_link()
-        self.product['isSellerNameInProductName'] = get_seller_name_in_product_name()
+        product['soldByStoreLink'] = get_seller_store_link()
+        product['isSellerNameInProductName'] = get_seller_name_in_product_name()
 
-        yield self.product
+        yield product
 
     def parse_product_details(self, response):
+        product = Product()
 
         if response.meta and not self.debug:
             # set props to meta values if available
             logging.info('Starting to Harvest >>> ' + response.meta['asin'])
-            self.product['asin'] = response.meta['asin']
-            self.product['isPrime'] = response.meta['isPrime']
-            self.product['url'] = response.meta['url']
+            product['asin'] = response.meta['asin']
+            product['isPrime'] = response.meta['isPrime']
+            product['url'] = response.meta['url']
 
         def get_asin():
 
@@ -386,40 +388,38 @@ class AmazonSpider(scrapy.Spider):
                     "style_name": style_name
                 }
 
-        if 'asin' not in self.product:
-            self.product['asin'] = get_asin()
+        if 'asin' not in product:
+            product['asin'] = get_asin()
 
-        self.product['title'] = get_title()
-        self.product['price'] = get_price()
-        self.product['category'] = "Home & Kitchen"
-        self.product['bsr'] = get_bsr()
-        self.product['soldByAmazon'] = get_sold_by_amazon()
-        self.product['rating'] = get_rating()
-        self.product['isFba'] = get_fba()
-        self.product['aboutBullets'] = get_about_bullets()
-        self.product['description'] = get_description()
-        self.product['hasBuyBox'] = get_buy_box()
-        self.product['soldBy'] = get_sold_by()
-        self.product['sellers'] = get_sellers()
-        self.product['totalReviews'] = get_total_reviews()
-        self.product['uuid'] = str(uuid.uuid4())
-        self.product['image'] = get_image()
-        self.product['variations'] = get_variations()
-
+        product['title'] = get_title()
+        product['price'] = get_price()
+        product['category'] = "Home & Kitchen"
+        product['bsr'] = get_bsr()
+        product['soldByAmazon'] = get_sold_by_amazon()
+        product['rating'] = get_rating()
+        product['isFba'] = get_fba()
+        product['aboutBullets'] = get_about_bullets()
+        product['description'] = get_description()
+        product['hasBuyBox'] = get_buy_box()
+        product['soldBy'] = get_sold_by()
+        product['sellers'] = get_sellers()
+        product['totalReviews'] = get_total_reviews()
+        product['uuid'] = str(uuid.uuid4())
+        product['image'] = get_image()
+        product['variations'] = get_variations()
 
         # after harvesting all of the product details make second request for the rest of the data
         # only execute 2nd call if the extra categories are missing
 
         # TODO: convert this to a function
-        if 'asin' in self.product:
+        if 'asin' in product:
 
             buying_options_btn = response.css("#buybox-see-all-buying-choices-announce").get()
             more_sellers_link = response.css("#olp-upd-new").get()
             availability = response.css("#availability").get()
-            asin = self.product['asin']
+            asin = product['asin']
 
             if buying_options_btn or more_sellers_link or availability:
                 url = f"https://www.amazon.com/gp/aod/ajax/ref=dp_olp_NEW_mbc?asin={asin}"
                 buying_options_url = get_url(url)
-                yield scrapy.Request(url=buying_options_url, callback=self.parse_buying_options)
-
+                return scrapy.Request(url=buying_options_url, callback=self.parse_buying_options, dont_filter=True, meta={"product": product})
